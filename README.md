@@ -33,6 +33,10 @@ Postgresql database with performance_stats table, e.g:
         timespan float NOT NULL
     );
 
+Verify OOI UI services are operational by using a web browser and navigating to:
+
+    http://localhost:4000/arrays
+
 ### Running the services instance
     python status_handler.py
 

@@ -4,7 +4,7 @@ ooi-ui-status
 
 Ocean Observatories Initiative - User Interface Status Service.
 
-Brief WSGI service supporting request for all routes in OOI UI Flask App; then process each static route for execution status
+Brief WSGI service supporting request for all routes in OOI UI Flask App; then process each static route for execution status.
 
 
 ## Service endpoints
@@ -41,7 +41,7 @@ Test your initial setup by running from status directory:
 
     python status_handler.py
 
-Verify you are exercising server by using a web browser and navigating to:
+Verify service is operational by using a web browser and navigating to:
 
     http://localhost:4070/service=alive
 

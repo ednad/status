@@ -161,7 +161,8 @@ class StatusHandler(object):
                     input_str={'Database': {'Connection': 'Error'}}
                     return self.format_json(input_str)
 
-            # Fetch all routes for OOI UI App; identify static routes; determine the execution time for all static routes.
+            # Fetch all routes for OOI UI App; identify static routes;
+            # determine the execution time for all static routes.
             # Store result(s) in psql database; one record per route exercised.
             # Returns: JSON
             elif param_dict[KEY_SERVICE] == FETCH_STATS:
@@ -176,59 +177,25 @@ class StatusHandler(object):
                 import datetime as dt
                 scenario_timestamp = dt.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-                # Prepare url for fetching list of (route, endpoints) tuples
-                actual_route_url = 'http://' + self.routes_url + ':' + str(self.routes_port) + '/' + self.routes_command
-
-                # get list of (route, endpoint) tuples for routes with 'GET' method in rule of app.url_map
-                # filter routes into two lists based on type of route: static or dynamic
-                result = None
+                # get all routes from OOI UI App
                 try:
-                    list_result = requests.get(actual_route_url,timeout=(self.routes_timeout_connect, self.routes_timeout_read))
-                    if list_result:
-                        if list_result.status_code == 200:
-                            if list_result.json():
-                                result = list_result.json()
-                    else:
-                        start_response(BAD_REQUEST_400, CONTENT_TYPE_JSON)
-                        input_str={'ERROR': 'no content returned from ' + self.routes_command + '; check config routes_* values'}
-                        return self.format_json(input_str)
-
+                    result = self.get_routes()
                 except Exception, err:
                     start_response(BAD_REQUEST_400, CONTENT_TYPE_JSON)
-                    input_str={'ERROR': 'processing terminated due to exception while processing routes_command: ' + err}
-                    return self.format_json(input_str)
+                    return err.message
 
-                # for all 'static' routes, execute url and get elapsed time for request-response;
-                # returns response result (as json) and status dictionary.
-                # Each status dictionary contains: status_code, route_url, route_endpoint, timespan;
-                # route_url and route_endpoint added
-                # All status dictionaries gathered in statuses list
+                # get static routes, execute and return all execution status dictionaries in
+                # list 'statuses'
+                statuses = []
                 if result:
-                    routes = result['routes']
-                    static_routes, dynamic_routes = self.separate_routes(routes)
-                    statuses = []
                     try:
-                        for static_tuple in static_routes:
-                            sr = static_tuple[0]
-                            se = static_tuple[1]
-                            actual_route_url = 'http://' + self.routes_url + ':' + str(self.routes_port)  + sr
-                            try:
-                                status = self.url_get_status(actual_route_url)
-                                status['status']['route_url'] = sr
-                                status['status']['route_endpoint'] = se
-
-                            except Exception, err:
-                                print 'WARNING: exception while processing route: %s, error: %s' % (sr, err)
-                                print 'WARNING: exception status: %s' % status
-
-                            statuses.append(status)
+                        statuses = self.get_statuses(result)
 
                     except Exception, err:
                         start_response(BAD_REQUEST_400, CONTENT_TYPE_JSON)
-                        input_str={'ERROR': 'exception while processing static route: ' + sr + 'error: ' + err}
-                        return self.format_json(input_str)
+                        return err.message
 
-                    # use contents of statuses and timestamp to write to db
+                    # use contents of statuses and timestamp to write to db; successful psql_result == None
                     psql_result = self.postgresql_write_stats(scenario_timestamp, statuses)
                     if psql_result:
                         start_response(BAD_REQUEST_400, CONTENT_TYPE_JSON)
@@ -238,13 +205,12 @@ class StatusHandler(object):
                     # response dictionary (final_results) contains 'timestamp' and 'stats'; stats is list of
                     # status results for all routes processed.
                     final_result = {}
-                    final_result['timestamp'] = scenario_timestamp[:]      # timestamp (of this performance run/scenario)
+                    final_result['timestamp'] = scenario_timestamp[:]      # timestamp (of fetchstats request)
                     final_result['stats'] = statuses[:]                    # list of status(es)
 
                     # prepare and return successful response
-                    input_str = final_result
                     start_response(OK_200, CONTENT_TYPE_JSON)
-                    return self.format_json(input_str)
+                    return self.format_json(final_result)
 
             # Specified service is not valid
             # Returns: html
@@ -253,9 +219,10 @@ class StatusHandler(object):
                 input_str={'ERROR': 'Specified service parameter is incorrect or unknown; ' + 'Request: ' + request }
                 return self.format_json(input_str)
 
-        start_response(OK_200, CONTENT_TYPE_TEXT)
-        input_str='{Request: ' + request + '}{Response: ' + output + '}'
-        return self.format_json(input_str)
+        else:
+            start_response(OK_200, CONTENT_TYPE_TEXT)
+            input_str='{Request: ' + request + '}{Response: ' + output + '}'
+            return self.format_json(input_str)
 
     def format_json(self, input_str=None):
         """
@@ -265,7 +232,6 @@ class StatusHandler(object):
         """
         io = StringIO()
         json.dump(input_str, io)
-        io.write('}')
         return io.getvalue()
 
     def get_postgres_connection(self):
@@ -297,14 +263,13 @@ class StatusHandler(object):
 
     def postgresql_write_stats(self, ts, stats):
         '''
-        for each stat in stats, write status to database
+        for each stat in stats, write performance status information to database
         '''
         try:
             conn = self.get_postgres_connection()
             c = conn.cursor(cursor_factory = psycopg2.extras.RealDictCursor)
             for s in stats:
                 r = s['status']
-                #print 'r: %s ' % r
                 query = 'insert into performance_stats(timestamp, status_code, url_processed, timespan, route_url, route_endpoint) ' + \
                     'values(\'%s\', \'%s\', \'%s\', %s, \'%s\', \'%s\' );' % \
                     (ts, r['status_code'], r['url_processed'], str(r['timespan']), r['route_url'], r['route_endpoint'] )
@@ -315,12 +280,75 @@ class StatusHandler(object):
 
         except Exception, err:
             print err
+            return err
         except psycopg2.DatabaseError, err:
             print err
             return err
         finally:
             if conn:
                 conn.close()
+
+    def get_routes(self):
+        '''
+        Get list of (route, endpoint) tuples from OOI UI App (see value of route_command in config)
+        '''
+        # Prepare url for fetching list of (route, endpoints) tuples
+        actual_route_url = 'http://' + self.routes_url + ':' + str(self.routes_port) + '/' + self.routes_command
+
+        # get list of (route, endpoint) tuples for routes with 'GET' method in rule of app.url_map
+        # filter routes into two lists based on type of route: static or dynamic
+        result = None
+        try:
+            list_result = requests.get(actual_route_url,timeout=(self.routes_timeout_connect, self.routes_timeout_read))
+            if list_result:
+                if list_result.status_code == 200:
+                    if list_result.json():
+                        result = list_result.json()
+            else:
+                input_str={'ERROR': 'no content returned from ' + self.routes_command + '; check config routes_* values'}
+                raise Exception(self.format_json(input_str))
+
+        except Exception, err:
+            input_str={'ERROR': 'processing terminated due to exception while processing routes_command: ' + err}
+            raise Exception(self.format_json(input_str))
+
+        return result
+
+    def get_statuses(self, result):
+        '''
+        Determine static vs. dynamic routes. For all 'static' routes, execute url and
+        get elapsed time for request-response; returns response result (as json) and status dictionary.
+
+        Return all status dictionaries gathered in list 'statuses'
+
+        Each status dictionary contains: status_code, route_url, route_endpoint, timespan;
+        route_url and route_endpoint added
+        '''
+
+        routes = result['routes']
+        static_routes, dynamic_routes = self.separate_routes(routes)
+        statuses = []
+        try:
+            for static_tuple in static_routes:
+                sr = static_tuple[0]
+                se = static_tuple[1]
+                actual_route_url = 'http://' + self.routes_url + ':' + str(self.routes_port)  + sr
+                try:
+                    status = self.url_get_status(actual_route_url)
+                    status['status']['route_url'] = sr
+                    status['status']['route_endpoint'] = se
+
+                except Exception, err:
+                    print 'WARNING: exception while processing route: %s, error: %s' % (sr, err)
+                    print 'WARNING: exception status: %s' % status
+
+                statuses.append(status)
+
+        except Exception, err:
+            input_str={'ERROR': 'exception while processing static route: ' + sr + ' error: ' + err}
+            raise Exception(self.format_json(input_str))
+
+        return statuses
 
     def separate_routes(self, routes):
         '''
@@ -341,9 +369,10 @@ class StatusHandler(object):
 
     def url_get_status(self, query_string):
         '''
-        process query string, determine execution time (in seconds), return status dictionary containing:
-        status_code, [actual] url_processed, timespan (execution time for request-response in seconds)
-        (Note: does not return result of query, just status)
+        Get status result by processing a single query string.
+        Determine execution time (in seconds), return status dictionary containing:
+           status_code, [actual] url_processed, timespan (execution time for request-response in seconds)
+        (Note: does not return result of query, just status dictionary)
         '''
         result_str={'status': {'timespan': '', 'status_code': '', 'url_processed': ''}}
         try:

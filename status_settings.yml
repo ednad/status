@@ -1,0 +1,21 @@
+status_handler:
+    service_mode: 'demo'              # switch: values 'live' or 'demo'
+    wsgi_server:
+        url:      '127.0.0.1'         # (str) wsgi service url
+        port:     4070                # (int) wsgi service port
+        routes_url: 'localhost'       # (str) ooiui host url
+        routes_port: 4000             # (str) ooiui port
+        routes_command: 'list_routes' # (str) ooiui route to fetch app.url_map for routes and endpoints
+        routes_timeout_connect: 5     # (int) connect timeout (should be greater than 3 secs)
+        routes_timeout_read: 45       # (int) read timeout (adjust to accommodate latency)
+    postgresql_server:
+        host:      localhost
+        port:     5432
+        username: ednadonoughe
+        password:
+        database: pstats
+    uframe_server:
+        url:      '/localhost/dummy/'
+        port:     2020
+        username: uframe
+        password: password

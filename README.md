@@ -79,6 +79,6 @@ Corrective action includes:
     If the OOI UI services are running:
         verify the status_settings.yml contains the correct values for the routes_url, routes_command,
         routes_port settings. (example routes_command: /list_routes)
-        
+
 ----
 

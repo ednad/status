@@ -60,7 +60,7 @@ class StatusHandler(object):
     uframe_password = None
 
     service_mode = None
-    debug = True
+    debug = False
 
     def __init__(self):
         """
@@ -180,7 +180,6 @@ class StatusHandler(object):
                         start_response(BAD_REQUEST_400, CONTENT_TYPE_JSON)
                         input_str={'ERROR': 'no routes returned; check config values for routes_*'}
                         return self.format_json(input_str)
-
                 except Exception, err:
                     start_response(BAD_REQUEST_400, CONTENT_TYPE_JSON)
                     return self.format_json(err.message)

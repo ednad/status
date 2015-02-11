@@ -62,5 +62,20 @@ Verify data has been committed to postgresql database, in table performance_stat
     $ psql pstats
     pstats=# select id, timestamp, status_code, timespan, route_url, route_endpoint from performance_stats;
 
+### Trouble Shooting
+
+If the OOI UI services are not running, and you try to exercise the performance status(es) by navigating to:
+
+    http://localhost:4070/service=fetchstats
+
+The following error message will be displayed:
+
+    {"ERROR": "failed to retrieve routes; verify OOI UI services are runnning and value of config setting 'routes_command'"}
+
+Corrective action includes:
+    Verify the OOI UI services are running.
+    If the OOI UI services are not running, start them.
+    If the OOI UI services are running, verify the status_settings.yml contains the correct values for the
+    routes_url, routes_command, routes_port settings. (example routes_command: /list_routes)
 ----
 

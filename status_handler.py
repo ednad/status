@@ -60,7 +60,7 @@ class StatusHandler(object):
     uframe_password = None
 
     service_mode = None
-    debug = False
+    debug = True
 
     def __init__(self):
         """
@@ -75,7 +75,6 @@ class StatusHandler(object):
                 stream.close()
             else:
                 raise IOError('No settings.yml or settings_local.yml file exists!')
-
         except IOError, err:
             print 'IOError: %s' % err.message
 
@@ -94,13 +93,13 @@ class StatusHandler(object):
         self.postgresql_password = settings['status_handler']['postgresql_server']['password']
         self.postgresql_database = settings['status_handler']['postgresql_server']['database']
 
+        # (proposed)
         self.uframe_url = settings['status_handler']['uframe_server']['url']
         self.uframe_port = settings['status_handler']['uframe_server']['port']
         self.uframe_username = settings['status_handler']['uframe_server']['username']
         self.uframe_password = settings['status_handler']['uframe_server']['password']
 
         self.service_mode = settings['status_handler']['service_mode']
-
         self.startup()
 
     def startup(self):
@@ -110,11 +109,9 @@ class StatusHandler(object):
         """
         try:
             WSGIServer((self.wsgi_url, self.wsgi_port), self.application).serve_forever()
-
         except IOError, err:
             print "The WSGI server at IP address " + self.wsgi_url + \
                   " failed to start on port " + str(self.wsgi_port) + "\nError message: " + str(err)
-
         except Exception, err:
             print "GENERAL EXCEPTION: The WSGI server at IP address " + self.wsgi_url + \
                   " failed to start on port " + str(self.wsgi_port) + "Error message: " + str(err)
@@ -124,7 +121,6 @@ class StatusHandler(object):
         request = env['PATH_INFO']
         request = request[1:]
         output = ''
-        if self.debug: print '\n' + request + '\n'
         req = request.split("&")
         param_dict = {}
         if len(req) > 1:
@@ -180,33 +176,43 @@ class StatusHandler(object):
                 # get all routes from OOI UI App
                 try:
                     result = self.get_routes()
+                    if not result:
+                        start_response(BAD_REQUEST_400, CONTENT_TYPE_JSON)
+                        input_str={'ERROR': 'no routes returned; check config values for routes_*'}
+                        return self.format_json(input_str)
+
                 except Exception, err:
                     start_response(BAD_REQUEST_400, CONTENT_TYPE_JSON)
-                    return err.message
+                    return self.format_json(err.message)
 
-                # get static routes, execute and return all execution status dictionaries in
+                # execute static routes and return all execution status dictionaries in
                 # list 'statuses'
                 statuses = []
                 if result:
                     try:
                         statuses = self.get_statuses(result)
-
                     except Exception, err:
                         start_response(BAD_REQUEST_400, CONTENT_TYPE_JSON)
-                        return err.message
+                        return self.format_json(err.message)
 
-                    # use contents of statuses and timestamp to write to db; successful psql_result == None
+                    # verify postgresql connection available; if not return error
+                    if not (self.check_postgresql_connection()):
+                        start_response(BAD_REQUEST_400, CONTENT_TYPE_JSON)
+                        input_str={'ERROR': 'postgres connection error; check config for postgres settings'}
+                        return self.format_json(input_str)
+
+                    #  write to db - use contents of statuses and timestamp to; successful psql_result == None
                     psql_result = self.postgresql_write_stats(scenario_timestamp, statuses)
                     if psql_result:
                         start_response(BAD_REQUEST_400, CONTENT_TYPE_JSON)
-                        input_str={'ERROR': 'error writing to Table \'performance_stats\' in database \'' + self.postgresql_database + '\''}
+                        input_str={'ERROR': 'error writing to database \'' + self.postgresql_database + '\': ' + psql_result}
                         return self.format_json(input_str)
 
                     # response dictionary (final_results) contains 'timestamp' and 'stats'; stats is list of
                     # status results for all routes processed.
                     final_result = {}
-                    final_result['timestamp'] = scenario_timestamp[:]      # timestamp (of fetchstats request)
-                    final_result['stats'] = statuses[:]                    # list of status(es)
+                    final_result['timestamp'] = scenario_timestamp      # timestamp (of fetchstats request)
+                    final_result['stats']     = statuses                # list of status(es)
 
                     # prepare and return successful response
                     start_response(OK_200, CONTENT_TYPE_JSON)
@@ -218,7 +224,6 @@ class StatusHandler(object):
                 start_response(BAD_REQUEST_400, CONTENT_TYPE_JSON)
                 input_str={'ERROR': 'Specified service parameter is incorrect or unknown; ' + 'Request: ' + request }
                 return self.format_json(input_str)
-
         else:
             start_response(OK_200, CONTENT_TYPE_TEXT)
             input_str='{Request: ' + request + '}{Response: ' + output + '}'
@@ -247,7 +252,6 @@ class StatusHandler(object):
                 port=self.postgresql_port)
             return conn
         except psycopg2.DatabaseError, err:
-            print err
             return err
 
     def check_postgresql_connection(self):
@@ -255,7 +259,6 @@ class StatusHandler(object):
         :return:
         """
         conn = self.get_postgres_connection()
-        print type(conn)
         if type(conn) == psycopg2.OperationalError:
             return None
         else:
@@ -265,6 +268,7 @@ class StatusHandler(object):
         '''
         for each stat in stats, write performance status information to database
         '''
+        conn = None
         try:
             conn = self.get_postgres_connection()
             c = conn.cursor(cursor_factory = psycopg2.extras.RealDictCursor)
@@ -275,28 +279,23 @@ class StatusHandler(object):
                     (ts, r['status_code'], r['url_processed'], str(r['timespan']), r['route_url'], r['route_endpoint'] )
                 c.execute(query)
                 conn.commit()
-
             return None
-
         except Exception, err:
-            print err
-            return err
+            return err.message
         except psycopg2.DatabaseError, err:
-            print err
-            return err
+            return err.message
         finally:
             if conn:
-                conn.close()
+                if type(conn) != psycopg2.OperationalError:
+                    conn.close()
 
     def get_routes(self):
         '''
         Get list of (route, endpoint) tuples from OOI UI App (see value of route_command in config)
+        On error return input_str dictionary with ERROR.
         '''
         # Prepare url for fetching list of (route, endpoints) tuples
-        actual_route_url = 'http://' + self.routes_url + ':' + str(self.routes_port) + '/' + self.routes_command
-
-        # get list of (route, endpoint) tuples for routes with 'GET' method in rule of app.url_map
-        # filter routes into two lists based on type of route: static or dynamic
+        actual_route_url = 'http://' + self.routes_url + ':' + str(self.routes_port) + self.routes_command
         result = None
         try:
             list_result = requests.get(actual_route_url,timeout=(self.routes_timeout_connect, self.routes_timeout_read))
@@ -304,13 +303,9 @@ class StatusHandler(object):
                 if list_result.status_code == 200:
                     if list_result.json():
                         result = list_result.json()
-            else:
-                input_str={'ERROR': 'no content returned from ' + self.routes_command + '; check config routes_* values'}
-                raise Exception(self.format_json(input_str))
-
         except Exception, err:
-            input_str={'ERROR': 'processing terminated due to exception while processing routes_command: ' + err}
-            raise Exception(self.format_json(input_str))
+            input_str={'ERROR': 'failed to retrieve routes; verify OOI UI services are runnning and value of config setting \'routes_command\''}
+            raise Exception(input_str)
 
         return result
 
@@ -318,41 +313,40 @@ class StatusHandler(object):
         '''
         Determine static vs. dynamic routes. For all 'static' routes, execute url and
         get elapsed time for request-response; returns response result (as json) and status dictionary.
-
         Return all status dictionaries gathered in list 'statuses'
-
-        Each status dictionary contains: status_code, route_url, route_endpoint, timespan;
-        route_url and route_endpoint added
+        Each status dictionary contains: status_code, timespan, route_url;
+        route_url, route_endpoint and url_processed added
         '''
-
         routes = result['routes']
         static_routes, dynamic_routes = self.separate_routes(routes)
         statuses = []
         try:
+            base_url = 'http://' + self.routes_url + ':' + str(self.routes_port)
             for static_tuple in static_routes:
                 sr = static_tuple[0]
                 se = static_tuple[1]
-                actual_route_url = 'http://' + self.routes_url + ':' + str(self.routes_port)  + sr
+                actual_route_url = base_url  + sr
                 try:
                     status = self.url_get_status(actual_route_url)
                     status['status']['route_url'] = sr
                     status['status']['route_endpoint'] = se
-
+                    status['status']['url_processed'] = actual_route_url
                 except Exception, err:
                     print 'WARNING: exception while processing route: %s, error: %s' % (sr, err)
                     print 'WARNING: exception status: %s' % status
 
-                statuses.append(status)
+                if status:
+                    statuses.append(status)
 
         except Exception, err:
-            input_str={'ERROR': 'exception while processing static route: ' + sr + ' error: ' + err}
-            raise Exception(self.format_json(input_str))
+            input_str={'ERROR': 'exception while processing static route: ' + sr + ' error: ' + err.message}
+            raise Exception(input_str)
 
         return statuses
 
     def separate_routes(self, routes):
         '''
-        for list of (route, endpoint) tuples, separate into static and dynamic route lists
+        for all routes, separate into static and dynamic route lists
         '''
         dynamic_routes = []
         static_routes = []
@@ -371,29 +365,22 @@ class StatusHandler(object):
         '''
         Get status result by processing a single query string.
         Determine execution time (in seconds), return status dictionary containing:
-           status_code, [actual] url_processed, timespan (execution time for request-response in seconds)
-        (Note: does not return result of query, just status dictionary)
+           status_code, timespan (execution time for request-response in seconds)
         '''
-        result_str={'status': {'timespan': '', 'status_code': '', 'url_processed': ''}}
+        result_str={'status': {'timespan': '', 'status_code': ''}}
         try:
-            if not query_string:
-                raise Exception('ERROR: url_get_status query_string parameter is empty')
-
+            if not query_string: raise Exception('ERROR : query_string parameter is empty')
             import datetime as dt
-            a = dt.datetime.now()   # start time
+            start_time = dt.datetime.now()
             result = requests.get(query_string,timeout=(self.routes_timeout_connect, self.routes_timeout_read))
-            b = dt.datetime.now()   # end time
-            d = b-a                 # delta
-            timespan       = d.total_seconds()
+            end_time = dt.datetime.now()
+            delta = end_time-start_time
+            timespan       = delta.total_seconds()
             status_code    = result.status_code
-            url_processed  = query_string
-            result_str['status']['timespan']      = timespan
-            result_str['status']['status_code']   = status_code
-            result_str['status']['url_processed'] = url_processed
+            result_str['status']['timespan']    = timespan
+            result_str['status']['status_code'] = status_code
             return result_str
-
         except Exception, err:
-            print 'error: exception processing url get_status; err: %s' % err
             result_str = {}
 
         return result_str

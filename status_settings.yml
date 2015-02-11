@@ -1,15 +1,15 @@
 status_handler:
-    service_mode: 'demo'              # switch: values 'live' or 'demo'
+    service_mode:       'demo'         # switch: values 'live' or 'demo'
     wsgi_server:
-        url:      '127.0.0.1'         # (str) wsgi service url
-        port:     4070                # (int) wsgi service port
-        routes_url: 'localhost'       # (str) ooiui host url
-        routes_port: 4000             # (str) ooiui port
-        routes_command: 'list_routes' # (str) ooiui route to fetch app.url_map for routes and endpoints
-        routes_timeout_connect: 5     # (int) connect timeout (should be greater than 3 secs)
-        routes_timeout_read: 45       # (int) read timeout (adjust to accommodate latency)
+        url:            127.0.0.1      # wsgi service host url
+        port:           4070           # wsgi service port
+        routes_url:     localhost      # ooiui services host url
+        routes_port:    4000           # ooiui services port
+        routes_command: /list_routes   # ooiui route to fetch app.url_map for routes and endpoints (eg. /list_routes)
+        routes_timeout_connect: 5      # connect timeout (should be greater than 3 secs)
+        routes_timeout_read: 45        # read timeout (adjust to accommodate latency)
     postgresql_server:
-        host:      localhost
+        host:     localhost
         port:     5432
         username: ednadonoughe
         password:

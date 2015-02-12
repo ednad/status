@@ -1,5 +1,5 @@
 # status
-ooi-ui-status
+##ooi-ui-status
 ===============
 
 Ocean Observatories Initiative - User Interface Status Service.
@@ -70,7 +70,7 @@ If the OOI UI services are not running, and you try to exercise the performance 
 
 The following error message will be displayed:
 
-    {"ERROR": "failed to retrieve routes; verify OOI UI services are runnning and value of
+    {"ERROR": "failed to retrieve routes; verify OOI UI services are running and value of
     config setting 'routes_command'"}
 
 In the event of an error, corrective action checks include:

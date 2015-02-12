@@ -1,13 +1,17 @@
 #!/usr/bin/env python
 
+from __future__ import unicode_literals
+
 """
 @package status_handler
 @file status_handler.py
 @author Edna Donoughe (based on work of James Case)
-@brief WSGI service supporting request for all routes in OOI UI Flask App, then process each static route for execution status
+@brief gunicorn service supporting request for all routes in OOI UI Flask App, then process each static route for execution status
 """
 
-from gevent.pywsgi import WSGIServer
+import multiprocessing
+import gunicorn.app.base
+from gunicorn.six import iteritems
 from os.path import exists
 import psycopg2
 import psycopg2.extras
@@ -26,47 +30,34 @@ CONTENT_TYPE_TEXT = [('Content-type', 'text/html')]
 OK_200 = '200 OK'
 BAD_REQUEST_400 = '400 Bad Request'
 
-class StatusHandler(object):
-    """
-    WSGI service that fetches the routes for OOI UI Flask App (based on app.url_map).
-    Execution time determined for each static route.
-    Allows for switching between LIVE and DEMO mode in the settings file (future use)
-    Provides for postgres connectivity check.
-    Provides for uframe connectivity check. (future use)
+class StatusHandler(gunicorn.app.base.BaseApplication):
 
-    Sample requests:
-        http://localhost:4070/service=alive
-        http://localhost:4070/service=checkconnections
-        http://localhost:4070/service=fetchstats
-    """
-    wsgi_url       = None
-    wsgi_port      = None
+    wsgi_url              = None
+    wsgi_port             = None
+    routes_url            = None
+    routes_port           = None
+    routes_command        = None
+    routes_timeout_connect= None
+    routes_timeout_read   = None
+    postgresql_host       = None
+    postgresql_port       = None
+    postgresql_username   = None
+    postgresql_password   = None
+    postgresql_database   = None
+    uframe_url            = None
+    uframe_port           = None
+    uframe_username       = None
+    uframe_password       = None
+    service_mode          = None
 
-    routes_url     = None
-    routes_port    = None
-    routes_command = None
-    routes_timeout_connect = None
-    routes_timeout_read    = None
+    options = None
+    debug   = False
 
-    postgresql_host     = None
-    postgresql_port     = None
-    postgresql_username = None
-    postgresql_password = None
-    postgresql_database = None
 
-    uframe_url  = None
-    uframe_port = None
-    uframe_username = None
-    uframe_password = None
+    def __init__(self, app, options=None):
+        self.options = options or {}
 
-    service_mode = None
-    debug = False
-
-    def __init__(self):
-        """
-        :return:
-        """
-        # Open the settings.yml or settings_local.yml file
+        # Open the status_settings.yml
         settings = None
         try:
             if exists("status_settings.yml"):
@@ -100,26 +91,29 @@ class StatusHandler(object):
         self.uframe_password = settings['status_handler']['uframe_server']['password']
 
         self.service_mode = settings['status_handler']['service_mode']
+
+        # override inital host:port with configuration values
+        self.options['bind'] = self.wsgi_url + ':' + str(self.wsgi_port)
+
         self.startup()
 
     def startup(self):
         """
-        Start status handler WSGI service to determine route execution performance.
+        Start status handler service to determine route execution performance.
         list of route(s) to be processed is determined dynamically from result of route_command
         """
         try:
-            WSGIServer((self.wsgi_url, self.wsgi_port), self.application).serve_forever()
+            super(StatusHandler, self).__init__()
+            
         except IOError, err:
-            print "The WSGI server at IP address " + self.wsgi_url + \
-                  " failed to start on port " + str(self.wsgi_port) + "\nError message: " + str(err)
+            print "IOError: %s " % err
         except Exception, err:
-            print "GENERAL EXCEPTION: The WSGI server at IP address " + self.wsgi_url + \
-                  " failed to start on port " + str(self.wsgi_port) + "Error message: " + str(err)
+            print "Exception: %s " % err
 
-    def application(self, env, start_response):
-
-        request = env['PATH_INFO']
+    def application(self, environ, start_response):
+        request = environ['PATH_INFO']
         request = request[1:]
+        print request
         output = ''
         req = request.split("&")
         param_dict = {}
@@ -139,8 +133,8 @@ class StatusHandler(object):
             # Simply check if the service is responding (alive)
             # Returns: html
             if param_dict[KEY_SERVICE] == ALIVE:
-                start_response(OK_200, CONTENT_TYPE_JSON)
                 input_str={'Service Response': 'Alive'}
+                start_response(OK_200, CONTENT_TYPE_JSON)
                 return self.format_json(input_str)
 
             # Check the postgresql connections
@@ -149,12 +143,12 @@ class StatusHandler(object):
                 #TODO: Add UFRAME connection check
                 postgresql_connected = self.check_postgresql_connection()
                 if postgresql_connected:
-                    start_response(OK_200, CONTENT_TYPE_JSON)
                     input_str={'Database': {'Connection': 'Alive'}}
+                    start_response(OK_200, CONTENT_TYPE_JSON)
                     return self.format_json(input_str)
                 else:
-                    start_response(BAD_REQUEST_400, CONTENT_TYPE_JSON)
                     input_str={'Database': {'Connection': 'Error'}}
+                    start_response(BAD_REQUEST_400, CONTENT_TYPE_JSON)
                     return self.format_json(input_str)
 
             # Fetch all routes for OOI UI App; identify static routes;
@@ -165,8 +159,8 @@ class StatusHandler(object):
 
                 # Check required configuration parameters are not empty
                 if not self.routes_port or not self.routes_url or not self.routes_command:
-                    start_response(BAD_REQUEST_400, CONTENT_TYPE_JSON)
                     input_str={'ERROR': 'routes_port, routes_url and routes_command must not be empty ; check config values'}
+                    start_response(BAD_REQUEST_400, CONTENT_TYPE_JSON)
                     return self.format_json(input_str)
 
                 # Get timestamp for this scenario (or group) of status checks for routes
@@ -177,8 +171,8 @@ class StatusHandler(object):
                 try:
                     result = self.get_routes()
                     if not result:
-                        start_response(BAD_REQUEST_400, CONTENT_TYPE_JSON)
                         input_str={'ERROR': 'no routes returned; check config values for routes_*'}
+                        start_response(BAD_REQUEST_400, CONTENT_TYPE_JSON)
                         return self.format_json(input_str)
                 except Exception, err:
                     start_response(BAD_REQUEST_400, CONTENT_TYPE_JSON)
@@ -196,22 +190,22 @@ class StatusHandler(object):
 
                     # verify postgresql connection available; if not return error
                     if not (self.check_postgresql_connection()):
-                        start_response(BAD_REQUEST_400, CONTENT_TYPE_JSON)
                         input_str={'ERROR': 'postgres connection error; check config for postgres settings'}
+                        start_response(BAD_REQUEST_400, CONTENT_TYPE_JSON)
                         return self.format_json(input_str)
 
                     #  write to db - use contents of statuses and timestamp to; successful psql_result == None
                     psql_result = self.postgresql_write_stats(scenario_timestamp, statuses)
                     if psql_result:
-                        start_response(BAD_REQUEST_400, CONTENT_TYPE_JSON)
                         input_str={'ERROR': 'error writing to database \'' + self.postgresql_database + '\': ' + psql_result}
+                        start_response(BAD_REQUEST_400, CONTENT_TYPE_JSON)
                         return self.format_json(input_str)
 
                     # response dictionary (final_results) contains 'timestamp' and 'stats'; stats is list of
                     # status results for all routes processed.
                     final_result = {}
-                    final_result['timestamp'] = scenario_timestamp      # timestamp (of fetchstats request)
-                    final_result['stats']     = statuses                # list of status(es)
+                    #final_result['timestamp'] = scenario_timestamp      # timestamp (of fetchstats request)
+                    final_result['stats']      = statuses                # list of status(es)
 
                     # prepare and return successful response
                     start_response(OK_200, CONTENT_TYPE_JSON)
@@ -220,13 +214,13 @@ class StatusHandler(object):
             # Specified service is not valid
             # Returns: html
             else:
+                input_str={'ERROR': 'Specified service parameter is incorrect or unknown; Request: ' + request }
                 start_response(BAD_REQUEST_400, CONTENT_TYPE_JSON)
-                input_str={'ERROR': 'Specified service parameter is incorrect or unknown; ' + 'Request: ' + request }
                 return self.format_json(input_str)
-        else:
-            start_response(OK_200, CONTENT_TYPE_TEXT)
-            input_str='{Request: ' + request + '}{Response: ' + output + '}'
-            return self.format_json(input_str)
+
+        input_str='{Request: ' + request + '}{Response: ' + output + '}'
+        start_response(OK_200, CONTENT_TYPE_TEXT)
+        return self.format_json(input_str)
 
     def format_json(self, input_str=None):
         """
@@ -303,7 +297,7 @@ class StatusHandler(object):
                     if list_result.json():
                         result = list_result.json()
         except Exception, err:
-            input_str={'ERROR': 'failed to retrieve routes; verify OOI UI services are runnning and value of config setting \'routes_command\''}
+            input_str={'ERROR': 'failed to retrieve routes; verify OOI UI services are runnning and value of config setting \'routes_command\'.'}
             raise Exception(input_str)
 
         return result
@@ -384,5 +378,36 @@ class StatusHandler(object):
 
         return result_str
 
-if __name__ == "__main__":
-    StatusHandler()
+
+    def load_config(self):
+        config = dict([(key, value) for key, value in iteritems(self.options)
+                       if key in self.cfg.settings and value is not None])
+        for key, value in iteritems(config):
+            self.cfg.set(key.lower(), value)
+
+    def load(self):
+        return self.application
+
+def handler_app_original(environ, start_response):
+        response_body = b'Works fine...'
+        status = '200 OK'
+
+        response_headers = [
+            ('Content-Type', 'text/plain'),
+        ]
+
+        start_response(status, response_headers)
+
+        return [response_body]
+
+def number_of_workers():
+    return (multiprocessing.cpu_count() * 2) + 1
+
+if __name__ == '__main__':
+    options = {
+        'bind': '%s:%s' % ('127.0.0.1', '8000'),
+        'workers': number_of_workers(),
+    }
+    StatusHandler(handler_app_original, options).run()
+
+

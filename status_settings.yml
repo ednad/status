@@ -15,7 +15,7 @@ status_handler:
         password:
         database: pstats
     uframe_server:
-        url:      '/localhost/dummy/'
+        url:      127.0.0.1
         port:     2020
         username: uframe
         password: password

@@ -4,19 +4,19 @@ ooi-ui-status
 
 Ocean Observatories Initiative - User Interface Status Service.
 
-Brief WSGI service supporting request for all routes in OOI UI Flask App; then process each static route for execution status.
+Brief gunicorn service supporting request for all routes in OOI UI Flask App; then process each static route for execution status.
 
 
 ## Service endpoints
 The WSGI service endpoints are listed and defined below:
 
-    /service=alive
-    /service=checkconnections
-    /service=fetchstats
+    /service=alive                  # service is operational
+    /service=checkconnections       # database connection is operational
+    /service=fetchstats             # execution stats for all OOI UI App routes
 
 
 ### Configuration
-Be sure to edit your `status_settings.yml` file to the correct URLs and Database Connectors.
+Be sure to edit your `status_settings.yml` file to the correct host(s), port(s), URL(s) and Database Connectors.
 
 ### Service setup
 Ensure you have the following:
@@ -72,7 +72,7 @@ The following error message will be displayed:
 
     {"ERROR": "failed to retrieve routes; verify OOI UI services are runnning and value of config setting 'routes_command'"}
 
-Corrective action includes:
+In the event of an error, corrective action checks include:
 
     Verify the OOI UI services are running.
     If the OOI UI services are not running, start them.

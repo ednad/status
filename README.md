@@ -70,15 +70,16 @@ If the OOI UI services are not running, and you try to exercise the performance 
 
 The following error message will be displayed:
 
-    {"ERROR": "failed to retrieve routes; verify OOI UI services are runnning and value of config setting 'routes_command'"}
+    {"ERROR": "failed to retrieve routes; verify OOI UI services are runnning and value of
+    config setting 'routes_command'"}
 
 In the event of an error, corrective action checks include:
 
-    Verify the OOI UI services are running.
-    If the OOI UI services are not running, start them.
-    If the OOI UI services are running:
-        verify the status_settings.yml contains the correct values for the routes_url, routes_command,
-        routes_port settings. (example routes_command: /list_routes)
+    - Verify the OOI UI services are running.
+    - If the OOI UI services are not running, start them.
+    - If the OOI UI services are running:
+        verify the status_settings.yml contains the correct values for the routes_url,
+        routes_command, routes_port settings. (example routes_command: /list_routes)
 
 ----
 

@@ -11,6 +11,6 @@ status_handler:
     postgresql_server:
         host:     localhost
         port:     5432
-        username: ednadonoughe
+        username: username
         password:
         database: pstats

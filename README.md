@@ -1,6 +1,5 @@
 # status
 ##ooi-ui-status
-===============
 
 Ocean Observatories Initiative - User Interface Status Service.
 

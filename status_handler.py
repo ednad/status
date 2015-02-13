@@ -218,9 +218,10 @@ class StatusHandler(gunicorn.app.base.BaseApplication):
                 start_response(BAD_REQUEST_400, CONTENT_TYPE_JSON)
                 return self.format_json(input_str)
 
-        input_str='{Request: ' + request + '}{Response: ' + output + '}'
-        start_response(OK_200, CONTENT_TYPE_TEXT)
-        return self.format_json(input_str)
+        else:
+            input_str='{Request: ' + request + '}{Response: ' + output + '}'
+            start_response(OK_200, CONTENT_TYPE_TEXT)
+            return self.format_json(input_str)
 
     def format_json(self, input_str=None):
         """

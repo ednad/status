@@ -7,15 +7,10 @@ status_handler:
         routes_port:    4000           # ooiui services port
         routes_command: /list_routes   # ooiui route to fetch app.url_map for routes and endpoints (eg. /list_routes)
         routes_timeout_connect: 5      # connect timeout (should be greater than 3 secs)
-        routes_timeout_read: 45        # read timeout (adjust to accommodate latency)
+        routes_timeout_read: 120       # read timeout (adjust to accommodate latency)
     postgresql_server:
         host:     localhost
         port:     5432
         username: ednadonoughe
         password:
         database: pstats
-    uframe_server:
-        url:      127.0.0.1
-        port:     2020
-        username: uframe
-        password: password

@@ -84,12 +84,6 @@ class StatusHandler(gunicorn.app.base.BaseApplication):
         self.postgresql_password = settings['status_handler']['postgresql_server']['password']
         self.postgresql_database = settings['status_handler']['postgresql_server']['database']
 
-        # (proposed)
-        self.uframe_url = settings['status_handler']['uframe_server']['url']
-        self.uframe_port = settings['status_handler']['uframe_server']['port']
-        self.uframe_username = settings['status_handler']['uframe_server']['username']
-        self.uframe_password = settings['status_handler']['uframe_server']['password']
-
         self.service_mode = settings['status_handler']['service_mode']
 
         # override inital host:port with configuration values
@@ -379,26 +373,24 @@ class StatusHandler(gunicorn.app.base.BaseApplication):
 
         return result_str
 
-
+    # required
     def load_config(self):
         config = dict([(key, value) for key, value in iteritems(self.options)
                        if key in self.cfg.settings and value is not None])
         for key, value in iteritems(config):
             self.cfg.set(key.lower(), value)
 
+    # required
     def load(self):
         return self.application
 
 def handler_app_original(environ, start_response):
         response_body = b'Works fine...'
         status = '200 OK'
-
         response_headers = [
             ('Content-Type', 'text/plain'),
         ]
-
         start_response(status, response_headers)
-
         return [response_body]
 
 def number_of_workers():

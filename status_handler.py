@@ -19,6 +19,7 @@ import simplejson as json
 from simplejson.compat import StringIO
 import yaml
 import requests
+import json2html
 
 KEY_SERVICE = "service"
 ALIVE = "alive"
@@ -202,8 +203,12 @@ class StatusHandler(BaseApplication):
                     final_result['stats']      = statuses                # list of status(es)
 
                     # prepare and return successful response
-                    start_response(OK_200, CONTENT_TYPE_JSON)
-                    return self.format_json(final_result)
+                    if param_dict[KEY_SERVICE][0] == "json":
+                        start_response(OK_200, CONTENT_TYPE_JSON)
+                        return self.format_json(final_result)
+                    else:
+                        start_response(OK_200, CONTENT_TYPE_TEXT)
+                        return self.format_html(final_result)
 
             # Specified service is not valid
             # Returns: html
@@ -226,6 +231,9 @@ class StatusHandler(BaseApplication):
         io = StringIO()
         json.dump(input_str, io)
         return io.getvalue()
+
+    def format_html(selfself, input_str=None):
+        return json2html.convert(json = input_str)
 
     def get_postgres_connection(self):
         """

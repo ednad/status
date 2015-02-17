@@ -9,6 +9,13 @@ ooiuistatusdb:
 web:
   build: .
   command: python status_handler.py
+  environment:
+    DB_PORT: 5432
+    DB_USER: ooiui
+    DB_PASS: ooiui
+    DB_HOST: ooiuistatusdb
+    DB_NAME: postgres
+    DB_RESET: true
   expose:
    - "4070"
   ports:

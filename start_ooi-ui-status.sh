@@ -14,7 +14,7 @@ else
   echo "DB_PASS=$DB_PASS"
   echo "DB_RESET=$DB_RESET"
   echo "ROUTES_URL=$ROUTES_URL"
-  echo "ROUTES_PORT=$ROUTES_PORT
+  echo "ROUTES_PORT=$ROUTES_PORT"
   exit
 fi
 
@@ -43,6 +43,15 @@ if [ "$DB_RESET" == "True" ]; then
   echo "Dropping and recreating database $DB_NAME on host $DB_HOST..."
   psql -h $DB_HOST -U $DB_USER -d postgres -c "DROP DATABASE $DB_NAME;"
   psql -h $DB_HOST -U $DB_USER -d postgres -c "CREATE DATABASE $DB_NAME;"
+  psql -h $DB_HOST -U $DB_USER -d $DB_NAME -c "CREATE TABLE performance_stats ( \
+    id SERIAL PRIMARY KEY, \
+    timestamp text NOT NULL, \
+    status_code text NOT NULL, \
+    url_processed text NOT NULL, \
+    route_url text NOT NULL, \
+    route_endpoint text NOT NULL, \
+    timespan float NOT NULL \
+  );"
 fi
 
 # Launch OOI UI Services

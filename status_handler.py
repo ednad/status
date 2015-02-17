@@ -10,7 +10,7 @@ from __future__ import unicode_literals
 """
 
 import multiprocessing
-import gunicorn.app.base
+from gunicorn.app.base import BaseApplication
 from gunicorn.six import iteritems
 from os.path import exists
 import psycopg2
@@ -30,7 +30,7 @@ CONTENT_TYPE_TEXT = [('Content-type', 'text/html')]
 OK_200 = '200 OK'
 BAD_REQUEST_400 = '400 Bad Request'
 
-class StatusHandler(gunicorn.app.base.BaseApplication):
+class StatusHandler(BaseApplication):
 
     wsgi_url              = None
     wsgi_port             = None

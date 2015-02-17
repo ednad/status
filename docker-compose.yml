@@ -1,0 +1,19 @@
+ooiuistatusdb:
+  image: oceanzus/docker_postgis
+  volumes:
+   - $HOME/statusdb_data:/var/lib/postgresql
+  environment:
+    USERNAME: ooiui
+    PASS: ooiui
+
+web:
+  build: .
+  command: python status_handler.py
+  expose:
+   - "4070"
+  ports:
+   - "10.171.76.246:4070:4070"
+  volumes:
+   - .:/code
+  links:
+   - ooiuistatusdb

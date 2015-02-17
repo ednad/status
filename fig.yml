@@ -1,7 +1,0 @@
-web:
-  build: .
-  command: python status_handler.py
-  ports:
-   - "4070:4070"
-  volumes:
-   - .:/code

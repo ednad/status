@@ -1,4 +1,5 @@
 ooiuistatusdb:
+  restart: always
   image: oceanzus/docker_postgis
   volumes:
    - $HOME/statusdb_data:/var/lib/postgresql
@@ -7,15 +8,20 @@ ooiuistatusdb:
     PASS: ooiui
 
 web:
+  restart: always
   build: .
   command: python status_handler.py
   environment:
+    APP_IP: 0.0.0.0
+    APP_PORT: 4070
+    ROUTES_URL: localhost
+    ROUTES_PORT: 4000
     DB_PORT: 5432
     DB_USER: ooiui
     DB_PASS: ooiui
     DB_HOST: ooiuistatusdb
-    DB_NAME: postgres
-    DB_RESET: true
+    DB_NAME: pstats
+    DB_RESET: false
   expose:
    - "4070"
   ports:
@@ -23,4 +29,4 @@ web:
   volumes:
    - .:/code
   links:
-   - ooiuistatusdb
+   - ooiuistatusdb:ooiuistatusdb

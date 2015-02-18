@@ -9,9 +9,10 @@ Brief gunicorn service supporting request for all routes in OOI UI Flask App; th
 ## Service endpoints
 The WSGI service endpoints are listed and defined below:
 
-    /service=alive                  # service is operational
-    /service=checkconnections       # database connection is operational
-    /service=fetchstats             # execution stats for all OOI UI App routes
+    /service=alive                    # service is operational
+    /service=checkconnections         # database connection is operational
+    /service=fetchstats&format=json   # execution stats for all OOI UI App routes, returns json
+    /service=fetchstats&format=html   # execution stats for all OOI UI App routes, returns html table
 
 
 ### Configuration
@@ -54,7 +55,7 @@ Verify postgres database connections are configured properly by using a web brow
 
 Exercise performance status(es) by using a web browser and navigating to:
 
-    http://localhost:4070/service=fetchstats
+    http://localhost:4070/service=fetchstats&format=json
 
 Verify data has been committed to postgresql database, in table performance_stats, using psql:
 
@@ -65,7 +66,7 @@ Verify data has been committed to postgresql database, in table performance_stat
 
 If the OOI UI services are not running, and you try to exercise the performance status(es) by navigating to:
 
-    http://localhost:4070/service=fetchstats
+    http://localhost:4070/service=fetchstats&format=json
 
 The following error message will be displayed:
 

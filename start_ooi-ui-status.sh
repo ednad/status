@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Check to make sure the input args have been passed in
-if [ -n "$DB_RESET" ] && [ -n "$DB_NAME" ] && [ -n "$DB_HOST" ] && [ -n "$DB_USER" ] && [ -n "$DB_PASS" ] && [ -n "$DB_PORT" ] && [ -n "$APP_IP" ] && [ -n "$APP_PORT" ] && [ -n "$ROUTES_PORT" ]; then
+if [ -n "$DB_RESET" ] && [ -n "$DB_NAME" ] && [ -n "$DB_HOST" ] && [ -n "$DB_USER" ] && [ -n "$DB_PASS" ] && [ -n "$DB_PORT" ] && [ -n "$APP_IP" ] && [ -n "$APP_PORT" ] && [ -n "$ROUTES_URL" ] && [ -n "$ROUTES_PORT" ]; then
   echo "All parameters supplied...continuing..."
 else
   echo "Missing a launch parameter?"
@@ -30,12 +30,9 @@ export PYTHONPATH=$PYTHONPATH:.
 # Make the config files conform to the launch parameters
 sed -i -e "s/url: 127.0.0.1/url: $APP_IP/g" status_settings.yml
 sed -i -e "s/port: 4070/port: $APP_PORT/g" status_settings.yml
-
-if [-n "$ROUTES_URL" }; then
-  echo "Using supplied OOI UI Services route of: $ROUTES_URL"
-else
-  $ROUTES_URL="$(docker inspect $(docker ps | grep oiuiservices | cut -d: -f1 | awk '{print $1}') | grep IPAddress | cut -d: -f2 | awk '{print $1}' | sed 's/[",\,]//g')"
-  echo "Using calculated guess for OOI UI Services route of: $ROUTES_URL"
+if [ "$ROUTES_URL" == "unknown" }; then
+  ROUTES_URL="$(docker inspect $(docker ps | grep oiuiservices | cut -d: -f1 | awk '{print $1}') | grep IPAddress | cut -d: -f2 | awk '{print $1}' | sed 's/[",\,]//g')"
+  export ROUTES_URL
 fi
 sed -i -e "s/routes_url: localhost/routes_url: $ROUTES_URL/g" status_settings.yml
 sed -i -e "s/routes_port: 4000/routes_port: $ROUTES_PORT/g" status_settings.yml

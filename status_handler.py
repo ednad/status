@@ -203,7 +203,7 @@ class StatusHandler(BaseApplication):
                     final_result['stats']      = statuses                # list of status(es)
 
                     # prepare and return successful response
-                    if param_dict[KEY_SERVICE][0] == "json":
+                    if param_dict['format'] == "json":
                         start_response(OK_200, CONTENT_TYPE_JSON)
                         return self.format_json(final_result)
                     else:
@@ -232,8 +232,8 @@ class StatusHandler(BaseApplication):
         json.dump(input_str, io)
         return io.getvalue()
 
-    def format_html(selfself, input_str=None):
-        return json2html.convert(json = input_str)
+    def format_html(self, input_str=None):
+        return str(json2html.json2html.convert(json = input_str))
 
     def get_postgres_connection(self):
         """

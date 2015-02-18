@@ -13,7 +13,7 @@ web:
   environment:
     APP_IP: 0.0.0.0
     APP_PORT: 4070
-    ROUTES_URL: localhost # use docker inspect root_ooiuiservices_1 to find the IP address
+    ROUTES_URL: localhost
     ROUTES_PORT: 4000
     DB_PORT: 5432
     DB_USER: ooiui

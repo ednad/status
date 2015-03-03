@@ -10,7 +10,7 @@ from __future__ import unicode_literals
 """
 
 import multiprocessing
-import gunicorn.app.base
+from gunicorn.app.base import BaseApplication
 from gunicorn.six import iteritems
 from os.path import exists
 import psycopg2
@@ -19,6 +19,7 @@ import simplejson as json
 from simplejson.compat import StringIO
 import yaml
 import requests
+import json2html
 
 KEY_SERVICE = "service"
 ALIVE = "alive"
@@ -30,7 +31,7 @@ CONTENT_TYPE_TEXT = [('Content-type', 'text/html')]
 OK_200 = '200 OK'
 BAD_REQUEST_400 = '400 Bad Request'
 
-class StatusHandler(gunicorn.app.base.BaseApplication):
+class StatusHandler(BaseApplication):
 
     wsgi_url              = None
     wsgi_port             = None
@@ -202,8 +203,12 @@ class StatusHandler(gunicorn.app.base.BaseApplication):
                     final_result['stats']      = statuses                # list of status(es)
 
                     # prepare and return successful response
-                    start_response(OK_200, CONTENT_TYPE_JSON)
-                    return self.format_json(final_result)
+                    if param_dict['format'] == "json":
+                        start_response(OK_200, CONTENT_TYPE_JSON)
+                        return self.format_json(final_result)
+                    else:
+                        start_response(OK_200, CONTENT_TYPE_TEXT)
+                        return self.format_html(final_result)
 
             # Specified service is not valid
             # Returns: html
@@ -226,6 +231,9 @@ class StatusHandler(gunicorn.app.base.BaseApplication):
         io = StringIO()
         json.dump(input_str, io)
         return io.getvalue()
+
+    def format_html(self, input_str=None):
+        return str(json2html.json2html.convert(json = input_str))
 
     def get_postgres_connection(self):
         """

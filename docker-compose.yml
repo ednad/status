@@ -1,0 +1,31 @@
+ooiuistatusdb:
+  restart: always
+  image: oceanzus/docker_postgis
+  volumes:
+   - $HOME/statusdb_data:/var/lib/postgresql
+  environment:
+    USERNAME: ooiui
+    PASS: ooiui
+
+web:
+  restart: always
+  build: .
+  environment:
+    APP_IP: 0.0.0.0
+    APP_PORT: 4070
+    ROUTES_URL: localhost
+    ROUTES_PORT: 4000
+    DB_PORT: 5432
+    DB_USER: ooiui
+    DB_PASS: ooiui
+    DB_HOST: ooiuistatusdb
+    DB_NAME: pstats
+    DB_RESET: true
+  expose:
+   - "4070"
+  ports:
+   - "10.171.76.246:4070:4070"
+  volumes:
+   - .:/code
+  links:
+   - ooiuistatusdb
